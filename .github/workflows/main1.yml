@@ -1,0 +1,78 @@
+name: Build ARM64 Wheels
+
+# 手动触发：GitHub → Actions → Build ARM64 Wheels → Run workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm   # GitHub 免费 ARM64 runner (Linux aarch64)
+    steps:
+      - name: Install Python 3.13 + system deps
+        run: |
+          sudo apt update -qq
+          sudo apt install -y -qq python3.13 python3.13-dev python3.13-venv gcc g++ make libffi-dev libssl-dev pkg-config
+          curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13
+
+      - name: Install build backends
+        run: |
+          python3.13 -m pip install --upgrade pip
+          python3.13 -m pip install maturin puccinialin setuptools-rust wheel cython ctypesgen platformdirs
+
+      - name: Compile Rust/C sdist → wheel (16 packages)
+        run: |
+          mkdir -p wheels
+          for pkg in \
+            "pydantic-core==2.41.5" \
+            "orjson==3.11.5" \
+            "rpds-py==0.30.0" \
+            "safetensors==0.8.0" \
+            "tokenizers==0.22.2" \
+            "uuid-utils==0.13.0" \
+            "watchfiles==1.1.1" \
+            "ormsgpack==1.12.2" \
+            "jiter==0.12.0" \
+            "tree-sitter-typescript==0.23.2" \
+            "pypdfium2==5.9.0" \
+            "cffi==2.0.0" \
+            "psycopg2-binary==2.9.11" \
+            "pycryptodome==3.23.0" \
+            "shapely==2.1.2" \
+            "thrift==0.23.0"; do
+            echo "=== $(date +%H:%M:%S) Building $pkg ==="
+            python3.13 -m pip wheel "$pkg" -w wheels --no-deps
+          done
+          echo ""
+          echo "=== Done. Wheels: ==="
+          ls -lh wheels/
+
+      - name: Package wheels
+        run: |
+          mkdir -p pure-python-sdist
+          # 纯 Python sdist 也打包成 wheel（零编译，pip 自动转）
+          for pkg in \
+            "alibabacloud-tea==0.4.3" \
+            "alibabacloud-credentials-api==1.0.0" \
+            "alibabacloud-endpoint-util==0.0.4" \
+            "alibabacloud-gateway-spi==0.0.3" \
+            "antlr4-python3-runtime==4.9.3" \
+            "jieba==0.42.1" \
+            "pylatexenc==2.10" \
+            "pyhive==0.7.0" \
+            "pure-sasl==0.6.2"; do
+            echo "=== Packaging $pkg ==="
+            python3.13 -m pip wheel "$pkg" -w wheels --no-deps
+          done
+          echo ""
+          echo "=== All wheels ==="
+          ls -lh wheels/
+          echo ""
+          echo "Total: $(ls wheels/*.whl | wc -l) wheels"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-compiled-wheels
+          path: wheels/
+build-arm64-wheels:
+  yml:
