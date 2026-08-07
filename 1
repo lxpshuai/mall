@@ -1,0 +1,52 @@
+name: Build ARM64 Wheels
+
+on:
+  workflow_dispatch:   # 手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm    # GitHub 免费 ARM64 runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python 3.13 + build tools
+        run: |
+          sudo apt update
+          sudo apt install -y python3.13 python3.13-dev python3.13-venv gcc g++ make libffi-dev libssl-dev
+          curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+          python3.13 get-pip.py
+          python3.13 -m pip install maturin puccinialin setuptools-rust wheel cython ctypesgen platformdirs
+
+      - name: Compile sdist → wheel
+        run: |
+          mkdir -p compiled_wheels
+          for pkg in \
+            "pydantic-core==2.41.5" \
+            "orjson==3.11.5" \
+            "rpds-py==0.30.0" \
+            "safetensors==0.8.0" \
+            "tokenizers==0.22.2" \
+            "uuid-utils==0.13.0" \
+            "zstandard==0.25.0" \
+            "watchfiles==1.1.1" \
+            "ormsgpack==1.12.2" \
+            "jiter==0.12.0" \
+            "tree-sitter-typescript==0.23.2" \
+            "pypdfium2==5.9.0" \
+            "cffi==2.0.0" \
+            "psycopg2-binary==2.9.11" \
+            "pycryptodome==3.23.0" \
+            "shapely==2.1.2" \
+            "thrift==0.23.0"; do
+            echo "=== Building: $pkg ==="
+            python3.13 -m pip wheel "$pkg" -w compiled_wheels --no-deps
+          done
+          echo ""
+          echo "=== Compiled wheels ==="
+          ls -lh compiled_wheels/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-compiled-wheels
+          path: compiled_wheels/
